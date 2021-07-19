@@ -1,0 +1,67 @@
+#args and kwargs
+
+def is_cat_here(*args):
+    if 'cats' in args:
+        return True
+    else:
+        return False
+    
+print(is_cat_here('cats is here'))
+
+def is_item_here(item,*args):
+    if item in args:
+        return True
+    else:
+        return False
+    
+print(is_item_here(1, 1234))
+
+def your_favorite_color(my_color, **kwargs): 
+    if 'color' in kwargs:
+        print('My favorite color is ' + my_color + ', but {} is also pretty good!'.format(kwargs['color']))
+    else:
+        print('My favorite color is ' + my_color + ' , what is your favorite color?')
+        
+your_favorite_color('green', name = 'Jane')
+your_favorite_color('green', name = 'Jane', color = 'red')
+
+#Классы Создайте класс BlogPost с атрибутами user_name, text, number_of_likes. Создайте два объекта этого класса. После создания измените атрибут number_of_likes одного из объектов. Распечатайте атрибут number_of_likes каждого из объектов
+
+#Мое решение
+
+class BlogPost:
+    def __init__(self, user_name, text, number_of_likes):
+        self.user_name = user_name
+        self.text = text
+        self.number_of_likes = number_of_likes
+    
+    def changenumber_of_likes(self,newnumber_of_likes):
+        self.number_of_likes = newnumber_of_likes
+
+user_John = BlogPost(user_name = 'John', text = 'hi', number_of_likes = 4)
+user_Jane = BlogPost(user_name = 'Jane', text = 'hello', number_of_likes = 5)
+
+print(user_John.number_of_likes)
+print(user_Jane.number_of_likes)
+
+    
+user_John.changenumber_of_likes(6)
+
+print(user_John.number_of_likes)
+
+#Ответ
+
+class BlogPost:
+    def __init__(self, user_name, text, number_of_likes):
+        self.user_name = user_name
+        self.text = text
+        self.number_of_likes = number_of_likes
+
+
+post_about_politicians = BlogPost('John', 'I like politicians', 0)
+post_about_cats = BlogPost('Jane', 'I like cats', 0)
+
+post_about_cats.number_of_likes = 1000
+
+print(post_about_politicians.number_of_likes)
+print(post_about_cats.number_of_likes)
