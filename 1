@@ -65,3 +65,50 @@ post_about_cats.number_of_likes = 1000
 
 print(post_about_politicians.number_of_likes)
 print(post_about_cats.number_of_likes)
+
+#Методы Создайте класс BankAccount с атрибутами client_id, client_first_name, client_last_name, balance и методами add() и withdraw(), при помощи которых можно пополнять счет и выводить средства со счета соответственно. Атрибут balance должен инициализироваться по умолчанию значением 0.0 и меняться при срабатывании методов add() и withdraw().
+
+class BankAccount:
+    def __init__(self, client_id, client_first_name, client_last_name, balance = 0.0):
+        self.client_id = client_id
+        self.client_first_name = client_first_name
+        self.client_last_name = client_last_name
+        self.balance = balance
+        
+ 
+    def add(self, n):
+        self.balance += n
+ 
+    def withdraw(self, n):
+        self.balance -= n
+ 
+    def print_balance (self):
+        print('%.2f' % self.balance)
+        
+        
+   #Ответ
+   
+   class BankAccount:
+
+    def __init__(self, client_id, client_first_name,
+                 client_last_name):
+        self.client_id = client_id
+        self.client_first_name = client_first_name
+        self.client_last_name = client_last_name
+        self.balance = 0.0
+
+    def add(self, amount):
+        self.balance += amount
+
+    def withdraw(self, amount):
+        self.balance -= amount
+
+
+account_1 = BankAccount(1, 'John', 'Brown')
+account_2 = BankAccount(2, 'Jim', 'White')
+
+account_1.add(1000)
+print(account_1.balance)
+account_1.withdraw(500)
+print(account_1.balance)
+print(account_2.balance)
