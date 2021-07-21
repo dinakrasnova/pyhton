@@ -112,3 +112,45 @@ print(account_1.balance)
 account_1.withdraw(500)
 print(account_1.balance)
 print(account_2.balance)
+
+#Наследование и полиморфизм Создайте класс GameCharacter с атрибутами name, health, level и методом speak(), который выводит на печать 'Hi, my name is (значение атрибута name)'.
+
+#Создайте класс Villain, наследник класса GameCharacter с теми же атрибутами, методом speak(), который выводит на печать 'Hi, my name is (значение атрибута name) and I will kill you', методом kill(), который принимает в качестве параметра объект класса GameCharacter, присваивает атрибуту health этого объекта значение 0 и  выводит на печать 'Bang-bang, now you're dead'
+
+class GameCharacter:
+
+    def __init__(self, name, health,
+                 level):
+        self.name = name
+        self.health = health
+        self.level = level
+
+    def speak(self):
+        print('Hi, my name is ' + self.name)
+
+
+class Villain(GameCharacter):
+    
+    def __init__(self, name, health, level):
+        self.name = name
+        self.health = health
+        self.level = level
+    
+    def speak(self):
+        print('Hi, my name is ' + self.name + 'I will kill you')
+
+
+
+    def kill(self, other):
+        other.health = 0
+        print('Bang-bang, now you\'re dead')
+
+
+james = GameCharacter('James', 100, 1)
+jim = Villain('Jim', 100, 2)
+
+james.speak()
+jim.speak()
+print(james.health)
+jim.kill(james)
+print(james.health)
