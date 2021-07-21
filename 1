@@ -154,3 +154,101 @@ jim.speak()
 print(james.health)
 jim.kill(james)
 print(james.health)
+
+#Создайте класс Chain с атрибутом number_of_items.
+
+#Создайте два специальных метода в этом классе.
+
+#Первый должен при вызове встроенной функции print() для объекта этого класса выводить 'Chain with (значение number_of_items) items'
+
+#Второй должен при вызове встроенной функции len() для объекта этого класса возвращать значение number_of_items этого объекта
+
+class Chain:
+    def __init__(self, number_of_items):
+        self.number_of_items = number_of_items
+    
+    def printing(self):
+        print('Chain with ' + self.number_of_items + ' items')
+    
+    def len_(self):
+        return len(self.number_of_items)
+        
+two = Chain('2')
+two.printing()
+print(two.len_())
+
+class Chain():
+    def __init__(self, number_of_items):
+        self.number_of_items = number_of_items
+
+    def __str__(self):
+        return "Chain with " + str(self.number_of_items)
+
+    def __len__(self):
+        return self.number_of_items
+
+
+chain_1 = Chain(23)
+chain_2 = Chain(32)
+
+print(chain_1)
+print(chain_2)
+
+#Создайте функцию-генератор get_week_day(), которая создаёт генератор, вырабатывающий один день недели за раз, Дни недели должны начинаться с воскресенья и заканчиваться субботой.
+
+#current_day = get_week_day()
+
+#print(current_day.__next__()) # 'Sunday'
+
+#print(current_day.__next__()) # 'Monday'
+
+#print(current_day.__next__()) # 'Tuesday'
+
+#print(current_day.__next__()) # 'Wednesday'
+
+#print(current_day.__next__()) # 'Thursday'
+
+#print(current_day.__next__()) # 'Friday'
+
+#print(current_day.__next__()) # 'Saturday'
+
+def get_week_day():
+    days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    for day in days:
+        yield day
+        
+current_day = get_week_day()
+
+print(current_day.__next__())
+print(current_day.__next__())
+
+#Создайте функцию even_odd(), создающую генератор, который будет попеременно вырабатывать строки 'even' и 'odd'.
+
+#even_odd_generator = even_odd()
+
+#print(next(even_odd_generator)) # 'even'
+
+#print(next(even_odd_generator)) # 'odd'
+
+def even_odd():
+    value = 'even'
+    while True:
+        yield value
+        if value == 'even':
+            value = "odd"
+        else:
+            value = "even"
+ #Создайте функцию, возвращающую генератор, бесконечно вырабатывающий квадраты целых чисел, начиная с 1.
+
+#infinite_square_generator = get_infinite_square_generator()
+
+#print(next(infinite_square_generator)) # 1 
+
+def get_infinite_square_generator():
+    number = 1
+    while True:
+        yield number * number
+        number += 1
+infinite_square_generator = get_infinite_square_generator
+print(next(infinite_square_generator))
+print(next(infinite_square_generator))
