@@ -274,3 +274,23 @@ def some_func():
 
 
 some_func()
+
+#Создайте функцию-декоратор hello_from_decorator, которая добавляет к возвращаемому значению функции, которую она декорирует, строку "Hello from decorator!"
+
+from functools import wraps
+
+
+def hello_from_decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        return str(result) + ' Hello from decorator!'
+    return wrapper
+
+
+@hello_from_decorator
+def some_func():
+    return 3
+
+
+print(some_func())
