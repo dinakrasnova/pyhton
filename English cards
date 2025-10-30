@@ -1,0 +1,103 @@
+import pandas as pd
+import random
+from IPython.display import display, clear_output
+import ipywidgets as widgets
+
+# Ссылка на твою таблицу
+sheet_url = "https://docs.google.com/spreadsheets/d/1xn8y1Wxu9lNagcUThZhvlQGw11QS_S2NRI2g8LrGilg/export?format=csv"
+
+# Загружаем таблицу
+df = pd.read_csv(sheet_url)
+print(f"Loaded {len(df)} cards!")
+
+score = 0
+total = 0
+wrong_answers = []
+
+# Перемешиваем карточки один раз
+cards_list = df.sample(frac=1).to_dict('records')
+current_index = 0
+
+# Виджеты
+output = widgets.Output()
+answer_box = widgets.Text(placeholder='Type your answer here...')
+submit_button = widgets.Button(description='Submit')
+next_button = widgets.Button(description='Next Card')
+finish_button = widgets.Button(description='Finish')
+
+current_card = None
+mode = None
+
+def new_card(_=None):
+    global current_card, mode, current_index
+    if current_index >= len(cards_list):
+        with output:
+            clear_output(wait=True)
+            print("🎉 All cards completed!")
+        submit_button.disabled = True
+        next_button.disabled = True
+        return
+
+    current_card = cards_list[current_index]
+    current_index += 1
+    mode = random.choice(["definition_first", "word_first"])
+
+    answer_box.value = ''
+    submit_button.disabled = False
+    next_button.disabled = True
+
+    with output:
+        clear_output(wait=True)
+        if mode == "definition_first":
+            print(f"📘 Definition: {current_card['Definition']}")
+        else:
+            print(f"💬 Word: {current_card['Word']}")
+
+def check_answer(_):
+    global score, total, wrong_answers
+    user_answer = answer_box.value.strip().lower()
+    word = current_card['Word'].strip().lower()
+    definition = current_card['Definition'].strip().lower()
+    total += 1
+
+    with output:
+        if mode == "definition_first":
+            if user_answer == word:
+                print("✅ Correct!")
+                score += 1
+            else:
+                print(f"❌ Wrong. The correct answer was: {word}")
+                wrong_answers.append((current_card['Word'], current_card['Definition']))
+        else:
+            keywords = [w for w in definition.split() if len(w) > 3][:3]
+            if any(k in user_answer for k in keywords):
+                print("✅ Looks good! (close enough)")
+                score += 1
+            else:
+                print(f"❌ Expected something like: {definition}")
+                wrong_answers.append((current_card['Word'], current_card['Definition']))
+        print(f"🔹 Score: {score}/{total}")
+
+    submit_button.disabled = True
+    next_button.disabled = False
+
+def finish(_):
+    clear_output(wait=True)
+    print(f"🎯 Final score: {score}/{total}")
+    if wrong_answers:
+        print("\n📌 Review these cards:")
+        for w, d in wrong_answers:
+            print(f"- {w}: {d}")
+    else:
+        print("\n👏 Perfect! No mistakes!")
+    print("\n💡 Refresh the Colab page to start a new session.")
+
+# Привязываем кнопки
+submit_button.on_click(check_answer)
+next_button.on_click(new_card)
+finish_button.on_click(finish)
+
+# Отображаем интерфейс
+display(output, answer_box, submit_button, next_button, finish_button)
+new_card()
+next_button.disabled = True
