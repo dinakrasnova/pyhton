@@ -1,0 +1,131 @@
+<script>
+    // ID таблицы и листа
+    const sheetId = "1xn8y1Wxu9lNagcUThZhvlQGw11QS_S2NRI2g8LrGilg";
+    const gid = "0"; // если не первый лист, подставь реальный gid
+
+    // gviz JSON endpoint
+    const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&tq&gid=${gid}`;
+
+    let cards = [];
+    let currentIndex = 0;
+    let currentCard = null;
+    let mode = null;
+    let score = 0;
+    let total = 0;
+    let wrong = [];
+
+    async function loadCards() {
+        try {
+            const response = await fetch(sheetUrl);
+            const text = await response.text();
+
+            // срезаем обёртку gviz и парсим JSON
+            const json = JSON.parse(text.substring(47).slice(0, -2));
+            const rows = json.table.rows;
+
+            // пропускаем первую строку (Word / Definition)
+            cards = rows
+                .slice(1)
+                .map(r => ({
+                    Word: r.c[0]?.v || "",
+                    Definition: r.c[1]?.v || ""
+                }))
+                .filter(c => c.Word && c.Definition);
+
+            // перемешиваем
+            cards = cards.sort(() => Math.random() - 0.5);
+
+            if (cards.length === 0) {
+                document.getElementById("card").innerText = "Нет данных в таблице.";
+                return;
+            }
+
+            nextCard();
+        } catch (e) {
+            console.error(e);
+            document.getElementById("card").innerText = "Не удалось загрузить карточки.";
+        }
+    }
+
+    function nextCard() {
+        if (currentIndex >= cards.length) {
+            document.getElementById("card").innerText = "🎉 All cards completed!";
+            document.getElementById("next").disabled = true;
+            document.getElementById("submit").disabled = true;
+            return;
+        }
+
+        currentCard = cards[currentIndex];
+        currentIndex++;
+
+        mode = Math.random() < 0.5 ? "definition_first" : "word_first";
+
+        if (mode === "definition_first") {
+            document.getElementById("card").innerHTML =
+                "📘 Definition:<br><b>" + currentCard.Definition + "</b>";
+        } else {
+            document.getElementById("card").innerHTML =
+                "💬 Word:<br><b>" + currentCard.Word + "</b>";
+        }
+
+        document.getElementById("answer").value = "";
+        document.getElementById("submit").disabled = false;
+        document.getElementById("next").disabled = true;
+    }
+
+    function checkAnswer() {
+        const user = document.getElementById("answer").value.trim().toLowerCase();
+        const word = currentCard.Word.toLowerCase();
+        const def = currentCard.Definition.toLowerCase();
+
+        total++;
+
+        let res = "";
+
+        if (mode === "definition_first") {
+            if (user === word) {
+                res = "✅ Correct!";
+                score++;
+            } else {
+                res = "❌ Wrong. Correct: " + word;
+                wrong.push(currentCard);
+            }
+        } else {
+            const keywords = def.split(" ").filter(w => w.length > 3).slice(0, 3);
+            if (keywords.some(k => user.includes(k))) {
+                res = "✅ Close enough! Full answer: " + def;
+                score++;
+            } else {
+                res = "❌ Expected something like: " + def;
+                wrong.push(currentCard);
+            }
+        }
+
+        document.getElementById("result").innerText =
+            res + "\n\nScore: " + score + "/" + total;
+
+        document.getElementById("submit").disabled = true;
+        document.getElementById("next").disabled = false;
+    }
+
+    function finish() {
+        let msg = `🎯 Final score: ${score}/${total}\n\n`;
+
+        if (wrong.length > 0) {
+            msg += "📌 Review:\n";
+            wrong.forEach(c => {
+                msg += `- ${c.Word}: ${c.Definition}\n`;
+            });
+        } else {
+            msg += "👏 Perfect!";
+        }
+
+        document.getElementById("result").innerText = msg;
+    }
+
+    document.getElementById("submit").onclick = checkAnswer;
+    document.getElementById("next").onclick = nextCard;
+    document.getElementById("finish").onclick = finish;
+
+    loadCards();
+</script>
