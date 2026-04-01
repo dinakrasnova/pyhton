@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Калькулятор УСН «Доходы» 6%</title>
+  <style>
+    :root {
+      --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+      --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+      --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+      --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+      --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2rem);
+
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+
+      --color-bg: #f7f6f2;
+      --color-surface: #fbfbf9;
+      --color-surface-2: #f3f0ec;
+      --color-border: #d4d1ca;
+      --color-text: #28251d;
+      --color-text-muted: #6f6c66;
+      --color-primary: #01696f;
+      --color-primary-hover: #0c4e54;
+      --color-primary-soft: #dcebea;
+      --color-error: #a12c7b;
+      --color-error-soft: #f6e6ef;
+      --color-success: #437a22;
+      --color-success-soft: #e5efdf;
+      --shadow-md: 0 10px 30px rgba(40, 37, 29, 0.08);
+      --radius-md: 0.75rem;
+      --radius-lg: 1rem;
+      --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: Inter, Arial, sans-serif;
+      font-size: var(--text-base);
+      line-height: 1.5;
+      color: var(--color-text);
+      background:
+        radial-gradient(circle at top left, rgba(1, 105, 111, 0.08), transparent 30%),
+        linear-gradient(180deg, #f8f7f4 0%, #f1efea 100%);
+      padding: var(--space-4);
+    }
+
+    .page {
+      min-height: calc(100vh - 2rem);
+      display: grid;
+      place-items: center;
+    }
+
+    .calculator-card {
+      width: min(100%, 760px);
+      background: var(--color-surface);
+      border: 1px solid rgba(40, 37, 29, 0.12);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      padding: clamp(var(--space-4), 3vw, var(--space-8));
+    }
+
+    h1 {
+      margin: 0 0 var(--space-2);
+      font-size: var(--text-xl);
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      margin: 0 0 var(--space-8);
+      color: var(--color-text-muted);
+      font-size: var(--text-base);
+    }
+
+    form {
+      display: grid;
+      gap: var(--space-6);
+    }
+
+    .field-group {
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+
+    label,
+    .group-title,
+    legend {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .hint {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      margin-top: calc(var(--space-2) * -1);
+    }
+
+    input[type="number"],
+    select {
+      width: 100%;
+      min-height: 48px;
+      padding: 0 var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: #fff;
+      color: var(--color-text);
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+    }
+
+    input[type="number"]:focus,
+    select:focus {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 4px rgba(1, 105, 111, 0.12);
+    }
+
+    fieldset {
+      margin: 0;
+      padding: var(--space-4);
+      border: 1px solid rgba(40, 37, 29, 0.12);
+      border-radius: var(--radius-md);
+      background: var(--color-surface-2);
+      min-width: 0;
+    }
+
+    .radio-list {
+      display: grid;
+      gap: var(--space-3);
+      margin-top: var(--space-3);
+    }
+
+    .radio-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid transparent;
+      transition: border-color var(--transition), background var(--transition);
+    }
+
+    .radio-item:focus-within {
+      border-color: var(--color-primary);
+      background: #fff;
+    }
+
+    .radio-item input[type="radio"] {
+      margin-top: 0.2rem;
+      flex: 0 0 auto;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+      align-items: center;
+    }
+
+    .btn {
+      min-height: 52px;
+      padding: 0 var(--space-6);
+      border: none;
+      border-radius: var(--radius-md);
+      background: var(--color-primary);
+      color: #fff;
+      font-size: var(--text-sm);
+      font-weight: 700;
+      cursor: pointer;
+      transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+      box-shadow: 0 10px 18px rgba(1, 105, 111, 0.18);
+    }
+
+    .btn:hover {
+      background: var(--color-primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .error-message {
+      display: none;
+      padding: var(--space-4);
+      border-radius: var(--radius-md);
+      background: var(--color-error-soft);
+      color: var(--color-error);
+      font-size: var(--text-sm);
+      font-weight: 600;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    .invalid {
+      border-color: var(--color-error) !important;
+      box-shadow: 0 0 0 4px rgba(161, 44, 123, 0.12) !important;
+      background: #fffafb;
+    }
+
+    .result {
+      margin-top: var(--space-8);
+      padding: clamp(var(--space-4), 2.4vw, var(--space-6));
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbfb 100%);
+      border: 1px solid rgba(1, 105, 111, 0.18);
+    }
+
+    .result h2 {
+      margin: 0 0 var(--space-4);
+      font-size: var(--text-lg);
+    }
+
+    .result-grid {
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid rgba(40, 37, 29, 0.08);
+    }
+
+    .result-row span:last-child {
+      text-align: right;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .result-row.overpay span:last-child {
+      color: var(--color-success);
+    }
+
+    .result-total {
+      margin-top: var(--space-5);
+      padding: var(--space-4);
+      border-radius: var(--radius-md);
+      background: var(--color-primary-soft);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-4);
+      align-items: center;
+      font-size: var(--text-lg);
+      font-weight: 800;
+    }
+
+    .result-total strong {
+      white-space: nowrap;
+    }
+
+    .muted-note {
+      margin-top: var(--space-4);
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: var(--space-3);
+      }
+
+      .calculator-card {
+        padding: var(--space-4);
+      }
+
+      .field-row,
+      .result-row,
+      .result-total {
+        grid-template-columns: 1fr;
+        display: grid;
+      }
+
+      .result-row span:last-child,
+      .result-total strong {
+        text-align: left;
+        white-space: normal;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="calculator-card" aria-labelledby="page-title">
+      <h1 id="page-title">Калькулятор УСН «Доходы» 6%</h1>
+      <p class="subtitle">Рассчитайте налог с учётом страховых взносов и авансовых платежей</p>
+
+      <form id="usnForm" novalidate>
+        <fieldset data-required-group="taxpayer-status">
+          <legend>Статус налогоплательщика</legend>
+          <div class="radio-list">
+            <label class="radio-item"><input type="radio" name="taxpayerStatus" value="ip_no_workers"> <span>ИП без работников</span></label>
+            <label class="radio-item"><input type="radio" name="taxpayerStatus" value="ip_with_workers"> <span>ИП с работниками</span></label>
+            <label class="radio-item"><input type="radio" name="taxpayerStatus" value="ooo"> <span>Организация (ООО)</span></label>
+          </div>
+        </fieldset>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="period">Период расчёта</label>
+            <select id="period" required>
+              <option value="">Выберите период</option>
+              <option value="1 квартал">1 квартал</option>
+              <option value="Полугодие">Полугодие</option>
+              <option value="9 месяцев">9 месяцев</option>
+              <option value="Год">Год</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="taxRate">Ставка налога, %</label>
+            <input id="taxRate" type="number" inputmode="decimal" min="0" step="0.1" value="6" required>
+            <p class="hint">Можно указать свою ставку, если в регионе действует пониженная</p>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="income">Доходы по УСН за выбранный период, руб.</label>
+          <input id="income" type="number" inputmode="decimal" min="0" step="0.01" required>
+        </div>
+
+        <div class="field-group">
+          <label for="contributions">Сумма страховых взносов, которые можно учесть, руб.</label>
+          <input id="contributions" type="number" inputmode="decimal" min="0" step="0.01" required>
+          <p class="hint">Для упрощения это общая сумма взносов, которую вы хотите учесть в расчёте</p>
+        </div>
+
+        <fieldset data-required-group="reduction-mode">
+          <legend>Режим уменьшения налога на взносы</legend>
+          <div class="radio-list">
+            <label class="radio-item"><input type="radio" name="reductionMode" value="full"> <span>Можно уменьшить налог на всю сумму взносов</span></label>
+            <label class="radio-item"><input type="radio" name="reductionMode" value="50percent"> <span>Можно уменьшить налог не более чем на 50%</span></label>
+          </div>
+        </fieldset>
+
+        <div class="field-group">
+          <label for="paidAdvance">Сумма авансов по УСН, уже уплаченных с начала года, руб.</label>
+          <input id="paidAdvance" type="number" inputmode="decimal" min="0" step="0.01" required>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="button" id="calculateBtn">Рассчитать налог</button>
+        </div>
+
+        <div id="formError" class="error-message" aria-live="polite">Пожалуйста, заполните все обязательные поля</div>
+      </form>
+
+      <section class="result" id="result" aria-live="polite">
+        <h2>Результат расчёта</h2>
+        <div class="result-grid" id="resultGrid">
+          <div class="result-row"><span>Налог до вычета взносов:</span><span>—</span></div>
+          <div class="result-row"><span>Учтено страховых взносов:</span><span>—</span></div>
+          <div class="result-row"><span>Налог после уменьшения на взносы:</span><span>—</span></div>
+          <div class="result-row"><span>Учитываемые авансовые платежи:</span><span>—</span></div>
+        </div>
+        <div class="result-total"><span>Налог к доплате за период:</span><strong>—</strong></div>
+        <p class="muted-note">Заполните форму и нажмите кнопку, чтобы получить расчёт.</p>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('usnForm');
+    const calculateBtn = document.getElementById('calculateBtn');
+    const formError = document.getElementById('formError');
+    const resultGrid = document.getElementById('resultGrid');
+    const resultTotal = document.querySelector('.result-total strong');
+    const resultNote = document.querySelector('.muted-note');
+
+    function formatRubles(value) {
+      return Math.round(value).toLocaleString('ru-RU') + ' руб.';
+    }
+
+    function clearValidationState() {
+      form.querySelectorAll('.invalid').forEach((element) => {
+        element.classList.remove('invalid');
+      });
+      formError.classList.remove('show');
+    }
+
+    function validateForm() {
+      clearValidationState();
+      let isValid = true;
+
+      const requiredFields = [
+        document.getElementById('period'),
+        document.getElementById('taxRate'),
+        document.getElementById('income'),
+        document.getElementById('contributions'),
+        document.getElementById('paidAdvance')
+      ];
+
+      requiredFields.forEach((field) => {
+        if (field.value === '') {
+          field.classList.add('invalid');
+          isValid = false;
+        }
+      });
+
+      const taxpayerStatus = form.querySelector('input[name="taxpayerStatus"]:checked');
+      const reductionMode = form.querySelector('input[name="reductionMode"]:checked');
+
+      if (!taxpayerStatus) {
+        form.querySelector('[data-required-group="taxpayer-status"]').classList.add('invalid');
+        isValid = false;
+      }
+
+      if (!reductionMode) {
+        form.querySelector('[data-required-group="reduction-mode"]').classList.add('invalid');
+        isValid = false;
+      }
+
+      if (!isValid) {
+        formError.classList.add('show');
+      }
+
+      return isValid;
+    }
+
+    function calculateUsnTax() {
+      if (!validateForm()) {
+        return;
+      }
+
+      const D = Number(document.getElementById('income').value);
+      const r = Number(document.getElementById('taxRate').value) / 100;
+      const V = Number(document.getElementById('contributions').value);
+      const A_paid = Number(document.getElementById('paidAdvance').value);
+      const mode = form.querySelector('input[name="reductionMode"]:checked').value;
+      const period = document.getElementById('period').value;
+
+      // Вычисление N_raw: налог до уменьшения на страховые взносы
+      const N_raw = D * r;
+
+      let N_after_vzn = 0;
+      let V_used = 0;
+      let V_rest = 0;
+
+      if (mode === 'full') {
+        // Применение взносов без ограничения 50%: можно уменьшить налог до нуля
+        V_used = Math.min(V, N_raw);
+        N_after_vzn = N_raw - V;
+        if (N_after_vzn < 0) {
+          N_after_vzn = 0;
+        }
+      } else {
+        // Ограничение 50%: сначала определяем максимально возможное уменьшение
+        const V_max = 0.5 * N_raw;
+        V_used = Math.min(V, V_max);
+        N_after_vzn = N_raw - V_used;
+        V_rest = V - V_used;
+      }
+
+      // Учёт авансов: определяем сумму налога к доплате
+      let N_to_pay = N_after_vzn - A_paid;
+      let overpayment = 0;
+
+      if (N_to_pay < 0) {
+        overpayment = Math.abs(N_to_pay);
+        N_to_pay = 0;
+      }
+
+      const rows = [
+        ['Налог до вычета взносов:', formatRubles(N_raw)],
+        ['Учтено страховых взносов:', formatRubles(V_used)],
+        ['Налог после уменьшения на взносы:', formatRubles(N_after_vzn)],
+        ['Учитываемые авансовые платежи:', formatRubles(A_paid)]
+      ];
+
+      if (mode === '50percent') {
+        rows.push(['Неиспользованный остаток взносов:', formatRubles(V_rest)]);
+      }
+
+      if (overpayment > 0) {
+        rows.push(['Переплата по авансам:', formatRubles(overpayment), 'overpay']);
+      }
+
+      resultGrid.innerHTML = rows.map(([label, value, className]) => `
+        <div class="result-row ${className || ''}">
+          <span>${label}</span>
+          <span>${value}</span>
+        </div>
+      `).join('');
+
+      resultTotal.textContent = formatRubles(N_to_pay);
+      resultNote.textContent = `Расчёт выполнен для периода «${period}». Все суммы в результате округлены до целых рублей.`;
+    }
+
+    calculateBtn.addEventListener('click', calculateUsnTax);
+
+    form.addEventListener('input', (event) => {
+      if (event.target.classList.contains('invalid')) {
+        event.target.classList.remove('invalid');
+      }
+
+      if (event.target.name === 'taxpayerStatus') {
+        form.querySelector('[data-required-group="taxpayer-status"]').classList.remove('invalid');
+      }
+
+      if (event.target.name === 'reductionMode') {
+        form.querySelector('[data-required-group="reduction-mode"]').classList.remove('invalid');
+      }
+
+      if (formError.classList.contains('show')) {
+        const hasInvalid = form.querySelector('.invalid');
+        if (!hasInvalid) {
+          formError.classList.remove('show');
+        }
+      }
+    });
+  </script>
+</body>
+</html>
