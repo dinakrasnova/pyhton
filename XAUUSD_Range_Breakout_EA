@@ -1,0 +1,593 @@
+#property strict
+#property version   "5.10"
+
+enum ENUM_EA_MODE
+  {
+   MODE_SIGNALS = 0,
+   MODE_AUTO    = 1
+  };
+
+enum ENUM_SL_MODE
+  {
+   SL_OPPOSITE_RANGE = 0,
+   SL_ATR_CAP        = 1
+  };
+
+input string          InpSymbol              = "XAUUSD";
+input ENUM_TIMEFRAMES InpTimeframe           = PERIOD_M15;
+input ENUM_EA_MODE    InpMode                = MODE_AUTO;
+
+input int             InpRangeStartHour      = 3;
+input int             InpRangeEndHour        = 9;
+input int             InpTradeStartHour      = 10;
+input int             InpTradeEndHour        = 20;
+
+input int             InpEMAFilterPeriod     = 50;
+input int             InpATRPeriod           = 14;
+
+input double          InpMinRangePoints      = 150.0;
+input double          InpMaxRangePoints      = 1200.0;
+
+input ENUM_SL_MODE    InpSLMode              = SL_OPPOSITE_RANGE;
+input double          InpSL_ATR_Mult         = 1.0;
+input double          InpTP_RR               = 1.3;
+
+input double          InpRiskPercent         = 1.0;
+input double          InpFixedLot            = 0.0;
+input double          InpMaxLot              = 0.05;
+input double          InpMarginSafetyFactor  = 0.90;
+
+input bool            InpOneTradePerDay      = true;
+input bool            InpAllowBuy            = true;
+input bool            InpAllowSell           = true;
+input bool            InpDebugLogs           = true;
+
+int      hEMA          = INVALID_HANDLE;
+int      hATR          = INVALID_HANDLE;
+
+datetime g_dayStamp    = 0;
+datetime g_lastBarTime = 0;
+bool     g_rangeReady  = false;
+bool     g_tradedToday = false;
+double   g_rangeHigh   = 0.0;
+double   g_rangeLow    = 0.0;
+
+//---------------------------------------------------------
+void Dbg(string msg)
+  {
+   if(InpDebugLogs)
+     {
+      Print(msg);
+     }
+  }
+
+//---------------------------------------------------------
+datetime DayStart(datetime t)
+  {
+   MqlDateTime dt;
+   TimeToStruct(t,dt);
+   dt.hour=0;
+   dt.min=0;
+   dt.sec=0;
+   return StructToTime(dt);
+  }
+
+//---------------------------------------------------------
+int HourOf(datetime t)
+  {
+   MqlDateTime dt;
+   TimeToStruct(t,dt);
+   return dt.hour;
+  }
+
+//---------------------------------------------------------
+bool InHourWindow(datetime t,int startHour,int endHour)
+  {
+   int h=HourOf(t);
+
+   if(startHour<endHour)
+     {
+      return (h>=startHour && h<endHour);
+     }
+
+   return (h>=startHour || h<endHour);
+  }
+
+//---------------------------------------------------------
+void ResetDayState()
+  {
+   g_rangeReady  = false;
+   g_tradedToday = false;
+   g_rangeHigh   = 0.0;
+   g_rangeLow    = 0.0;
+  }
+
+//---------------------------------------------------------
+bool HasOpenPosition(string symbol)
+  {
+   int total=PositionsTotal();
+
+   for(int i=0;i<total;i++)
+     {
+      ulong ticket=PositionGetTicket(i);
+      if(ticket==0)
+        {
+         continue;
+        }
+
+      if(PositionSelectByTicket(ticket))
+        {
+         if(PositionGetString(POSITION_SYMBOL)==symbol)
+           {
+            return true;
+           }
+        }
+     }
+
+   return false;
+  }
+
+//---------------------------------------------------------
+double NormalizeVolumeByStep(string symbol,double lot)
+  {
+   double vmin=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
+   double vmax=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MAX);
+   double vstep=SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP);
+
+   if(vstep<=0.0)
+     {
+      vstep=0.01;
+     }
+
+   lot=MathMax(vmin,MathMin(vmax,lot));
+   lot=MathFloor(lot/vstep)*vstep;
+
+   int digits=2;
+   if(vstep==1.0)   digits=0;
+   if(vstep==0.1)   digits=1;
+   if(vstep==0.01)  digits=2;
+   if(vstep==0.001) digits=3;
+
+   return NormalizeDouble(lot,digits);
+  }
+
+//---------------------------------------------------------
+double CalcLotByRisk(string symbol,double entry,double stop)
+  {
+   if(InpFixedLot>0.0)
+     {
+      return NormalizeVolumeByStep(symbol,MathMin(InpFixedLot,InpMaxLot));
+     }
+
+   double riskMoney=AccountInfoDouble(ACCOUNT_BALANCE)*InpRiskPercent/100.0;
+   double tickSize=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_SIZE);
+   double tickValue=SymbolInfoDouble(symbol,SYMBOL_TRADE_TICK_VALUE);
+
+   if(tickSize<=0.0 || tickValue<=0.0)
+     {
+      return 0.0;
+     }
+
+   double stopDistance=MathAbs(entry-stop);
+   if(stopDistance<=0.0)
+     {
+      return 0.0;
+     }
+
+   double costPerLot=(stopDistance/tickSize)*tickValue;
+   if(costPerLot<=0.0)
+     {
+      return 0.0;
+     }
+
+   double lot=riskMoney/costPerLot;
+   lot=MathMin(lot,InpMaxLot);
+
+   return NormalizeVolumeByStep(symbol,lot);
+  }
+
+//---------------------------------------------------------
+double FitLotToMargin(string symbol,ENUM_ORDER_TYPE orderType,double desiredLot,double price)
+  {
+   double freeMargin=AccountInfoDouble(ACCOUNT_FREEMARGIN);
+   double targetMargin=freeMargin*InpMarginSafetyFactor;
+
+   double vmin=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
+   double vstep=SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP);
+
+   if(vstep<=0.0)
+     {
+      vstep=0.01;
+     }
+
+   double lot=NormalizeVolumeByStep(symbol,desiredLot);
+
+   while(lot>=vmin)
+     {
+      double margin=0.0;
+
+      if(!OrderCalcMargin(orderType,symbol,lot,price,margin))
+        {
+         Dbg("OrderCalcMargin failed. err="+IntegerToString(GetLastError()));
+         return 0.0;
+        }
+
+      if(margin<=targetMargin)
+        {
+         return lot;
+        }
+
+      lot-=vstep;
+      lot=NormalizeVolumeByStep(symbol,lot);
+     }
+
+   return 0.0;
+  }
+
+//---------------------------------------------------------
+bool ValidateStops(bool isBuy,double entry,double sl,double tp)
+  {
+   int stopLevel=(int)SymbolInfoInteger(InpSymbol,SYMBOL_TRADE_STOPS_LEVEL);
+   double minDist=stopLevel*SymbolInfoDouble(InpSymbol,SYMBOL_POINT);
+
+   if(minDist<=0.0)
+     {
+      return true;
+     }
+
+   if(isBuy)
+     {
+      return ((entry-sl)>=minDist && (tp-entry)>=minDist);
+     }
+
+   return ((sl-entry)>=minDist && (entry-tp)>=minDist);
+  }
+
+//---------------------------------------------------------
+ENUM_ORDER_TYPE_FILLING GetFillingMode(string symbol)
+  {
+   int filling=(int)SymbolInfoInteger(symbol,SYMBOL_FILLING_MODE);
+
+   if((filling & SYMBOL_FILLING_FOK)==SYMBOL_FILLING_FOK)
+     {
+      return ORDER_FILLING_FOK;
+     }
+
+   if((filling & SYMBOL_FILLING_IOC)==SYMBOL_FILLING_IOC)
+     {
+      return ORDER_FILLING_IOC;
+     }
+
+   return ORDER_FILLING_RETURN;
+  }
+
+//---------------------------------------------------------
+bool SendMarketOrder(ENUM_ORDER_TYPE orderType,double volume,double sl,double tp,string comment)
+  {
+   MqlTradeRequest req;
+   MqlTradeResult  res;
+   ZeroMemory(req);
+   ZeroMemory(res);
+
+   double price=0.0;
+   if(orderType==ORDER_TYPE_BUY)
+     {
+      price=SymbolInfoDouble(InpSymbol,SYMBOL_ASK);
+     }
+   else
+     {
+      price=SymbolInfoDouble(InpSymbol,SYMBOL_BID);
+     }
+
+   req.action       = TRADE_ACTION_DEAL;
+   req.symbol       = InpSymbol;
+   req.magic        = 20260711;
+   req.volume       = volume;
+   req.type         = orderType;
+   req.price        = price;
+   req.sl           = sl;
+   req.tp           = tp;
+   req.deviation    = 20;
+   req.type_filling = GetFillingMode(InpSymbol);
+   req.type_time    = ORDER_TIME_GTC;
+   req.comment      = comment;
+
+   bool ok=OrderSend(req,res);
+
+   if(!ok)
+     {
+      Dbg("OrderSend failed. err="+IntegerToString(GetLastError()));
+      return false;
+     }
+
+   if(res.retcode==TRADE_RETCODE_DONE ||
+      res.retcode==TRADE_RETCODE_PLACED ||
+      res.retcode==TRADE_RETCODE_DONE_PARTIAL)
+     {
+      Dbg("OrderSend success. retcode="+IntegerToString((int)res.retcode));
+      return true;
+     }
+
+   Dbg("OrderSend rejected. retcode="+IntegerToString((int)res.retcode));
+   return false;
+  }
+
+//---------------------------------------------------------
+bool BuildDailyRange()
+  {
+   datetime now=TimeCurrent();
+   datetime day0=DayStart(now);
+
+   MqlDateTime sdt,edt;
+   TimeToStruct(day0,sdt);
+   edt=sdt;
+
+   sdt.hour=InpRangeStartHour;
+   sdt.min=0;
+   sdt.sec=0;
+
+   edt.hour=InpRangeEndHour;
+   edt.min=0;
+   edt.sec=0;
+
+   datetime tStart=StructToTime(sdt);
+   datetime tEnd=StructToTime(edt);
+
+   int startShift=iBarShift(InpSymbol,InpTimeframe,tEnd,false);
+   int endShift=iBarShift(InpSymbol,InpTimeframe,tStart,false);
+
+   if(startShift<0 || endShift<0 || endShift<startShift)
+     {
+      Dbg("BuildDailyRange failed: invalid shifts");
+      return false;
+     }
+
+   int count=endShift-startShift+1;
+
+   int hiShift=iHighest(InpSymbol,InpTimeframe,MODE_HIGH,count,startShift);
+   int loShift=iLowest(InpSymbol,InpTimeframe,MODE_LOW,count,startShift);
+
+   if(hiShift<0 || loShift<0)
+     {
+      Dbg("BuildDailyRange failed: hi/lo not found");
+      return false;
+     }
+
+   g_rangeHigh=iHigh(InpSymbol,InpTimeframe,hiShift);
+   g_rangeLow =iLow(InpSymbol,InpTimeframe,loShift);
+
+   double rangePts=(g_rangeHigh-g_rangeLow)/_Point;
+
+   if(rangePts<InpMinRangePoints || rangePts>InpMaxRangePoints)
+     {
+      Dbg("Range rejected. points="+DoubleToString(rangePts,1));
+      g_rangeReady=false;
+      return false;
+     }
+
+   g_rangeReady=true;
+
+   Dbg("Range ready: high="+DoubleToString(g_rangeHigh,_Digits)+
+       " low="+DoubleToString(g_rangeLow,_Digits)+
+       " pts="+DoubleToString(rangePts,1));
+
+   return true;
+  }
+
+//---------------------------------------------------------
+bool GetIndicatorValues(double &ema,double &atr)
+  {
+   double emaBuf[2];
+   double atrBuf[2];
+
+   ArraySetAsSeries(emaBuf,true);
+   ArraySetAsSeries(atrBuf,true);
+
+   if(CopyBuffer(hEMA,0,0,2,emaBuf)!=2)
+     {
+      return false;
+     }
+
+   if(CopyBuffer(hATR,0,0,2,atrBuf)!=2)
+     {
+      return false;
+     }
+
+   ema=emaBuf[1];
+   atr=atrBuf[1];
+   return true;
+  }
+
+//---------------------------------------------------------
+void TryBreakoutTrade()
+  {
+   if(!g_rangeReady)
+     {
+      return;
+     }
+
+   if(InpOneTradePerDay && g_tradedToday)
+     {
+      return;
+     }
+
+   if(HasOpenPosition(InpSymbol))
+     {
+      return;
+     }
+
+   if(!InHourWindow(TimeCurrent(),InpTradeStartHour,InpTradeEndHour))
+     {
+      return;
+     }
+
+   double ema=0.0;
+   double atr=0.0;
+
+   if(!GetIndicatorValues(ema,atr))
+     {
+      return;
+     }
+
+   double bid=SymbolInfoDouble(InpSymbol,SYMBOL_BID);
+   double ask=SymbolInfoDouble(InpSymbol,SYMBOL_ASK);
+   double close1=iClose(InpSymbol,InpTimeframe,1);
+
+   bool buyBreak=(InpAllowBuy && close1>g_rangeHigh && close1>ema);
+   bool sellBreak=(InpAllowSell && close1<g_rangeLow && close1<ema);
+
+   if(!buyBreak && !sellBreak)
+     {
+      return;
+     }
+
+   double entry=0.0;
+   double sl=0.0;
+   double tp=0.0;
+   double lot=0.0;
+
+   if(buyBreak)
+     {
+      entry=ask;
+
+      if(InpSLMode==SL_OPPOSITE_RANGE)
+        {
+         sl=g_rangeLow;
+        }
+      else
+        {
+         sl=MathMax(g_rangeLow,entry-InpSL_ATR_Mult*atr);
+        }
+
+      tp=entry+(entry-sl)*InpTP_RR;
+
+      lot=CalcLotByRisk(InpSymbol,entry,sl);
+      lot=FitLotToMargin(InpSymbol,ORDER_TYPE_BUY,lot,entry);
+
+      if(lot>0.0 && ValidateStops(true,entry,sl,tp))
+        {
+         if(InpMode==MODE_AUTO)
+           {
+            if(SendMarketOrder(ORDER_TYPE_BUY,lot,sl,tp,"Range Breakout BUY"))
+              {
+               g_tradedToday=true;
+              }
+           }
+         else
+           {
+            Dbg("SIGNAL BUY range breakout");
+           }
+        }
+     }
+
+   if(sellBreak)
+     {
+      entry=bid;
+
+      if(InpSLMode==SL_OPPOSITE_RANGE)
+        {
+         sl=g_rangeHigh;
+        }
+      else
+        {
+         sl=MathMin(g_rangeHigh,entry+InpSL_ATR_Mult*atr);
+        }
+
+      tp=entry-(sl-entry)*InpTP_RR;
+
+      lot=CalcLotByRisk(InpSymbol,entry,sl);
+      lot=FitLotToMargin(InpSymbol,ORDER_TYPE_SELL,lot,entry);
+
+      if(lot>0.0 && ValidateStops(false,entry,sl,tp))
+        {
+         if(InpMode==MODE_AUTO)
+           {
+            if(SendMarketOrder(ORDER_TYPE_SELL,lot,sl,tp,"Range Breakout SELL"))
+              {
+               g_tradedToday=true;
+              }
+           }
+         else
+           {
+            Dbg("SIGNAL SELL range breakout");
+           }
+        }
+     }
+  }
+
+//---------------------------------------------------------
+int OnInit()
+  {
+   if(!SymbolSelect(InpSymbol,true))
+     {
+      Dbg("SymbolSelect failed");
+      return INIT_FAILED;
+     }
+
+   hEMA=iMA(InpSymbol,InpTimeframe,InpEMAFilterPeriod,0,MODE_EMA,PRICE_CLOSE);
+   hATR=iATR(InpSymbol,InpTimeframe,InpATRPeriod);
+
+   if(hEMA==INVALID_HANDLE || hATR==INVALID_HANDLE)
+     {
+      Dbg("Indicator handle creation failed");
+      return INIT_FAILED;
+     }
+
+   g_dayStamp=DayStart(TimeCurrent());
+   ResetDayState();
+
+   Dbg("EA initialized");
+   return INIT_SUCCEEDED;
+  }
+
+//---------------------------------------------------------
+void OnDeinit(const int reason)
+  {
+   if(hEMA!=INVALID_HANDLE)
+     {
+      IndicatorRelease(hEMA);
+     }
+
+   if(hATR!=INVALID_HANDLE)
+     {
+      IndicatorRelease(hATR);
+     }
+  }
+
+//---------------------------------------------------------
+void OnTick()
+  {
+   datetime now=TimeCurrent();
+   datetime d0=DayStart(now);
+
+   if(d0!=g_dayStamp)
+     {
+      g_dayStamp=d0;
+      ResetDayState();
+      Dbg("New day reset");
+     }
+
+   datetime barTime=iTime(InpSymbol,InpTimeframe,0);
+
+   if(barTime<=0)
+     {
+      return;
+     }
+
+   if(barTime==g_lastBarTime)
+     {
+      return;
+     }
+
+   g_lastBarTime=barTime;
+
+   if(!g_rangeReady)
+     {
+      if(!InHourWindow(now,InpRangeStartHour,InpRangeEndHour) && HourOf(now)>=InpRangeEndHour)
+        {
+         BuildDailyRange();
+        }
+     }
+
+   TryBreakoutTrade();
+  }
